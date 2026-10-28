@@ -39,6 +39,7 @@ The target is never modified, committed or pushed.
 """
 
 import os
+import tempfile
 from collections.abc import Iterator, MutableMapping
 from pathlib import Path
 from typing import Any
@@ -331,12 +332,16 @@ def build_report(state: State) -> dict[str, Any]:
     if state.get(_ERROR_KEY) or state.get(_BASELINE_KEY) is None:
         return {"error": state.get(_ERROR_KEY) or "no baseline scan"}
     source = Path(state[_SOURCE_KEY])
-    work = _work_dir(state)
     baseline = state[_BASELINE_KEY]
     current = state[_CURRENT_KEY]
     applied = state.get(_APPLIED_KEY) or {}
     diff = workspace.unified_diff(source, applied)
-    patch_file = work.parent / "security-fix.patch"
+    # A private, per-run directory (mkdtemp is 0700 and unique), outside the
+    # working copy so the patch is never scanned or tested as project code.
+    patch_file = (
+        Path(tempfile.mkdtemp(prefix="code-security-patch-"))
+        / "security-fix.patch"
+    )
     patch_file.write_text(diff, encoding="utf-8")
     base_counts = scanner.finding_counts(baseline)
     now_counts = scanner.finding_counts(current)
